@@ -1,3 +1,5 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import {
