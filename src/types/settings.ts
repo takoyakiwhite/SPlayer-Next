@@ -164,6 +164,8 @@ export interface PlayerSettings {
   coverLayout: CoverLayout;
   /** 无歌词时自动居中封面并隐藏歌词区域 */
   autoCenterCover: boolean;
+  /** 全屏播放器显示当前播放来源 */
+  showPlaybackSource: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
@@ -206,6 +208,8 @@ export interface AppearanceSettings {
   sidebarCollapsed: boolean;
   /** 侧边栏歌单项显示封面 */
   sidebarPlaylistCover: boolean;
+  /** 侧边栏显示播放统计入口 */
+  showStatsInSidebar: boolean;
   /** 播放栏显示快捷音质切换 */
   showQualitySwitch: boolean;
   /** 点击关闭按钮的行为 */
