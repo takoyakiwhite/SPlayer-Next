@@ -73,6 +73,14 @@ const csrfFrom = (cookie: Record<string, string>): string => cookie["__csrf"] ||
 const OSX_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
+/** iOS 客户端指纹（对齐 MeloX 的 eapiHeader，所有 eapi/api 请求统一使用） */
+const IOS_HEADER_DEFAULTS: Readonly<Record<string, string>> = {
+  os: "iPhone OS",
+  osver: "16.2",
+  appver: "9.0.90",
+  channel: "distribution",
+};
+
 /** 生成 WNMCID（进程级常量）：6 位小写字母.时间戳.01.0 */
 const WNMCID = (() => {
   const chars = "abcdefghijklmnopqrstuvwxyz";
@@ -225,17 +233,18 @@ export const createRequest = async (
     }
     case "eapi":
     case "api": {
+      // 所有 eapi/api 请求统一使用 iOS 客户端指纹（对齐 MeloX），否则服务端判定为 PC
       const header: Record<string, string> = {
-        osver: cookie.osver,
+        osver: IOS_HEADER_DEFAULTS.osver,
         deviceId: cookie.deviceId,
-        os: cookie.os,
-        appver: cookie.appver,
+        os: IOS_HEADER_DEFAULTS.os,
+        appver: IOS_HEADER_DEFAULTS.appver,
         versioncode: cookie.versioncode || "140",
         mobilename: cookie.mobilename || "",
         buildver: cookie.buildver || Date.now().toString().slice(0, 10),
         resolution: cookie.resolution || "1920x1080",
         __csrf: csrfToken,
-        channel: cookie.channel,
+        channel: IOS_HEADER_DEFAULTS.channel,
         requestId: generateRequestId(),
       };
       if (cookie.MUSIC_U) header.MUSIC_U = cookie.MUSIC_U;
