@@ -73,28 +73,6 @@ const csrfFrom = (cookie: Record<string, string>): string => cookie["__csrf"] ||
 const OSX_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-/** 与 unblockneteasemusic 一致：路径包含 "url" 的请求（播放/下载地址等）替换请求头 */
-const URL_PATH_KEYWORD = "url";
-
-/** 返回 URL 的请求专用 Cookie（模拟 unblockneteasemusic 的 NETEASE_COOKIE，硬编码） */
-const NETEASE_COOKIE =
-  "ntes_kaola_ad=1; __csrf=8d67b6f0481f86cde9fddf43708b79d3; EVNSM=1.0.0; NMCID=wabmka.1785335019000.01.3; NMDI=Q1NKTQcBDAA7hVogCVEQS2hWg%2BpoAAAA7NuPUAIzCNutHNcg0iqegquZC7HnWpR7C2gydhM1X4bG2Ae5nSGmW6WKYY9zr6hfmt4QpKgGyA9i2qBwniR%2F%2FyUM9khG9VCwdCKFszc7rZcLBG5cYIPgR9zR9XP99CNQluh1YgHYcjM%3D; URS_APPID=A3D58FFD6065DC60B1247F56D57C39316EA1D3C5D65C3766EFB4A38A7EC0CA6234708886D92A370536AFC2F8BCB0E7588D231F295379E2C2CF217DF79226B5F406253E5893B7DC3FABF2925C7F7E5BE4614EE170EB2913B01F04238ADB59B052; appkey=IuRPVVmc3WWul9fT; appver=9.5.60; buildver=7150; caid={\"lastIyunId\":\"8a19951c0b8445e0d3a06c412c5270d6\",\"iyunId\":\"670e71e0707c8ef014d54ccf7c2606eb\",\"iyunVersion\":\"20260506\",\"lastIyunVersion\":\"20250325\"}; channel=distribution; deviceId=4fa268a041522085395d49d82a531ce0; idfa=; idfv=F0E5725C-09AE-4405-944F-B5EE88A6CFB3; machineid=iPhone15.2; os=iPhone OS; osver=16.2; packageType=release; sDeviceId=4fa268a041522085395d49d82a531ce0; JSESSIONID-WYYY=ebquFXgp%2FTulHhQm8fW2NUcvWHs9Wcp5vbW2rmNDuatSbNFmMmIeM9HsQtdxBxFEZdaOPhgpkPy5Wz5mSquj7C38kIBHKHI3EKV%5CjUaGj8DHBx7de32sNORBebz283%5CcsIPc4kzebG3rB%2FBZO0%2FRvw%5CVYrcq3QH2QO2C5cQkVDGcFC9u%3A1785345324774; *iuqxldmzr*=33; NMTID=00O9bi-ewpY8yFlr0CjkmO6TiDR6AAAAAGfrmrb6A; _ntes_nnid=aa571ef400169d56e07ca0db2f618790,1785336267791; _ntes_nuid=aa571ef400169d56e07ca0db2f618790; __csrf=8d67b6f0481f86cde9fddf43708b79d3; MUSIC_U=008268BF8011134007A2C412E6DFEA1722F6A63B72D2D57DA4508F1AEBE1307B16AE83DA81B8229C6539B7CD87EDFFF0A3DABF23FE0C83D86C87D98958563E6D5A01FC4CC60497539592D3BBD95F135A8F5026F22E05A05421E4465829F00FBD80F5914E90267FE4110D6AB534B79039F9A1215C0A0534F0330F8C32577CD8815D530317B2FE8ACAD5C76DF2B087438596121AC7BC6255424185FEEBBFDC24AD091AA4CF19B715CF229E4FFFECA63F59A0AB22220A885B46F9929D2FEAB7A3D18F2E3331332133DA08F5CB196617DDF6B08A1B8F66D758204E1D23A190A359F7BB9DBE25713F885D17D0F3C958A82870B5857E530F84ECF3FF597BE31A54B9018EBD668010706C65CAF5A3C19E9804180EE4C812EB34D4D6B90F5BCB6C7DDA1B5753260DAC3528FEF4A9F1F3C0B67F2E15294AAA5696151342268F1F9794AB603186C48F2804AEC4A1419F9D4E27794B7A323F05D9F33BB3C18B229A6F2609B931";
-
-/** 返回 URL 的请求专用 User-Agent（模拟 NETEASE_USER_AGENT，硬编码） */
-const NETEASE_USER_AGENT = "NeteaseMusic 9.5.60/7150 (iPhone; iOS 16.2; zh_CN)";
-
-/** 返回 URL 的请求专用 MConfig-Info（模拟 NETEASE_MCONFIG_INFO，硬编码） */
-const NETEASE_MCONFIG_INFO =
-  '{"IuRPVVmc3WWul9fT":{"version":113289216,"appver":"9.5.60"},"zr4bw6pKFDIZScpo":{"version":3807232,"appver":"9.5.60"},"tPJJnts2H31BZXmp":{"version":5017600,"appver":"2.0.30"}}';
-
-/** 与 NETEASE_COOKIE 一致的 iOS 设备指纹，用于 body 内的 eapi header（对齐 MeloX） */
-const IOS_HEADER_DEFAULTS: Readonly<Record<string, string>> = {
-  os: "iPhone OS",
-  osver: "16.2",
-  appver: "9.0.90",
-  channel: "distribution",
-};
-
 /** 生成 WNMCID（进程级常量）：6 位小写字母.时间戳.01.0 */
 const WNMCID = (() => {
   const chars = "abcdefghijklmnopqrstuvwxyz";
@@ -247,19 +225,17 @@ export const createRequest = async (
     }
     case "eapi":
     case "api": {
-      // 返回 URL 的请求：body header 指纹用 iOS 值（对齐 MeloX），与 NETEASE_COOKIE 的 iPhone 身份一致
-      const isUrlRequest = uri.includes(URL_PATH_KEYWORD);
       const header: Record<string, string> = {
-        osver: isUrlRequest ? IOS_HEADER_DEFAULTS.osver : cookie.osver,
+        osver: cookie.osver,
         deviceId: cookie.deviceId,
-        os: isUrlRequest ? IOS_HEADER_DEFAULTS.os : cookie.os,
-        appver: isUrlRequest ? IOS_HEADER_DEFAULTS.appver : cookie.appver,
+        os: cookie.os,
+        appver: cookie.appver,
         versioncode: cookie.versioncode || "140",
         mobilename: cookie.mobilename || "",
         buildver: cookie.buildver || Date.now().toString().slice(0, 10),
         resolution: cookie.resolution || "1920x1080",
         __csrf: csrfToken,
-        channel: isUrlRequest ? IOS_HEADER_DEFAULTS.channel : cookie.channel,
+        channel: cookie.channel,
         requestId: generateRequestId(),
       };
       if (cookie.MUSIC_U) header.MUSIC_U = cookie.MUSIC_U;
@@ -280,13 +256,6 @@ export const createRequest = async (
     }
     default:
       throw new Error(`Unknown crypto: ${crypto}`);
-  }
-
-  // 与 unblockneteasemusic 一致：路径含 "url" 的请求替换为硬编码的 cookie / UA / MConfig-Info
-  if (uri.includes(URL_PATH_KEYWORD)) {
-    if (NETEASE_COOKIE) headers["Cookie"] = NETEASE_COOKIE;
-    if (NETEASE_USER_AGENT) headers["User-Agent"] = NETEASE_USER_AGENT;
-    if (NETEASE_MCONFIG_INFO) headers["MConfig-Info"] = NETEASE_MCONFIG_INFO;
   }
 
   const body = new URLSearchParams(encryptData as Record<string, string>).toString();

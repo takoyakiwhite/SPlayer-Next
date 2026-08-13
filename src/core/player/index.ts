@@ -37,6 +37,8 @@ interface LoadRuntimeOptions {
   suppressErrorToast?: boolean;
   /** 本次播放的来源上下文 */
   context?: PlaybackContext;
+  /** 服务端确认的 hires 源标记，用于修正解码采样率（44.1k/48k）导致的 Lossless 误判 */
+  hiRes?: boolean;
 }
 
 /** 单次音源兜底过程的重试状态 */
@@ -149,8 +151,13 @@ export const load = async (
       const { detail, mediaInfo } = result.data;
       consecutiveFailures = 0;
       const media = useMediaStore();
+      // 服务端确认的 hires 源以标记为准，保留真实解码采样率（44.1k/48k 也能正确显示 Hi-Res）
+      const hiResQuality = options.hiRes ? { ...detail.quality, hiRes: true } : null;
+      const overridden = hiResQuality
+        ? { info: { ...mediaInfo, quality: hiResQuality }, detail: { ...detail, quality: hiResQuality } }
+        : null;
       // 把引擎提取的 mediaInfo 与已有 Track 合并；身份字段保留
-      media.enrichTrack(mediaInfo, detail);
+      media.enrichTrack(overridden?.info ?? mediaInfo, overridden?.detail ?? detail);
       const enriched = media.track;
       // 避免重复请求
       if (!isOnline) {
@@ -246,6 +253,7 @@ const loadTrackSourceWithFallback = async (
     const result = await load(resolved.source, autoPlay, track, {
       suppressErrorToast: usingInitial || shouldSuppressLoadError(resolved),
       context,
+      hiRes: resolved.hiRes,
     });
     if (!shouldContinue()) return { status: "cancelled" };
     // 预载 URL 可能已经过期，非本地来源失败后重新解析一次最新地址

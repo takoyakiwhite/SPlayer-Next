@@ -63,6 +63,8 @@ export type OnlineResolveResult =
       isTrial: boolean;
       provider: "official" | "plugin" | "trial";
       pluginId?: string;
+      /** 服务端确认的 hires 源标记（网易云 hires 采样率可能仅 44.1k/48k，需以此为准展示） */
+      hiRes?: boolean;
     }
   | { ok: false; errorCode: ErrorCode };
 
@@ -162,7 +164,15 @@ const resolveOnlineUrl = async (
       if (!resolved.available) {
         officialErrorCode = resolved.errorCode;
       } else if (!resolved.isTrial) {
-        return { ok: true, url: resolved.url, isTrial: false, provider: "official" };
+        // 网易云 hires 源实际采样率可能仅 44.1k/48k，仅靠解码采样率会被误判为 Lossless；
+        // 以服务端确认的 level 为准标记 hires，交由上层修正展示
+        return {
+          ok: true,
+          url: resolved.url,
+          isTrial: false,
+          provider: "official",
+          hiRes: resolved.level === "hires",
+        };
       } else {
         trialUrl = resolved.url;
       }
@@ -192,6 +202,8 @@ export interface ResolvedTrackSource {
   provider: "local" | "cache" | "streaming" | "official" | "plugin" | "trial";
   pluginId?: string;
   cacheRequest?: () => Promise<void>;
+  /** 服务端确认的 hires 源标记，用于修正解码采样率（44.1k/48k）导致的 Lossless 误判 */
+  hiRes?: boolean;
 }
 
 /**
@@ -272,6 +284,7 @@ export const resolveTrackSource = async (
         fromCache: false,
         provider: resolved.provider,
         pluginId: resolved.pluginId,
+        hiRes: resolved.hiRes,
       };
       if (cacheEnabled && !resolved.isTrial) {
         result.cacheRequest = async () => {
