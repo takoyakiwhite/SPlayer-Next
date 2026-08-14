@@ -69,6 +69,8 @@ export interface AudioQuality {
   bitsPerSample: number;
   bitRate: number;
   codec: string;
+  /** 服务端确认的 Hi-Res 音频 */
+  hiRes?: boolean;
 }
 
 /**
