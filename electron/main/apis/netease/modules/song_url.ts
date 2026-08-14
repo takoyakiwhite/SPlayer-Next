@@ -11,8 +11,12 @@
  * - freeTrialInfo != null：仅 30s 试听片段
  */
 
+import { cookieToJson } from "../core/cookie";
 import { createOption } from "../core/option";
 import type { NeteaseModule } from "../core/types";
+
+const IOS_USER_AGENT =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
 
 const song_url: NeteaseModule = (query, request) => {
   const ids = query.id ?? query.ids;
@@ -21,7 +25,29 @@ const song_url: NeteaseModule = (query, request) => {
     level: query.level ?? "exhigh",
     encodeType: "flac",
   };
-  return request("/api/song/enhance/player/url/v1", data, createOption(query));
+
+  const cookie =
+    typeof query.cookie === "string"
+      ? cookieToJson(query.cookie)
+      : { ...(query.cookie ?? {}) };
+
+  // 与 MeloX iOS 播放请求保持一致：EAPI + iOS 18.0 环境。
+  return request(
+    "/api/song/enhance/player/url/v1",
+    data,
+    createOption({
+      ...query,
+      crypto: "eapi",
+      ua: IOS_USER_AGENT,
+      cookie: {
+        ...cookie,
+        os: "ios",
+        appver: "9.0.90",
+        osver: "18.0",
+        channel: "distribution",
+      },
+    }),
+  );
 };
 
 export default song_url;
