@@ -23,7 +23,11 @@ const song_url: NeteaseModule = async (query) => {
   };
 
   // player/url/v1 固定使用 MeloX iOS EAPI 请求，完全绕过通用请求层。
-  return requestMeloXIosPlayerURL(data, query.cookie);
+  return requestMeloXIosPlayerURL(
+    "/api/song/enhance/player/url/v1",
+    data,
+    query.cookie,
+  );
 };
 
 export default song_url;
