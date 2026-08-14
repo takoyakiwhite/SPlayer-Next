@@ -12,7 +12,6 @@
  */
 
 import { requestMeloXIosPlayerURL } from "../core/ios_player_url";
-import { createOption } from "../core/option";
 import type { NeteaseModule } from "../core/types";
 
 const song_url: NeteaseModule = async (query) => {
@@ -24,7 +23,6 @@ const song_url: NeteaseModule = async (query) => {
   };
 
   // player/url/v1 固定使用 MeloX iOS EAPI 请求，完全绕过通用请求层。
-  void createOption;
   return requestMeloXIosPlayerURL(data, query.cookie);
 };
 
