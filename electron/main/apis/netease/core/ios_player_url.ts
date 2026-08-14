@@ -5,9 +5,8 @@
  * of going through the generic Netease request cookie serializer.
  */
 
-import { encrypt } from "./crypto";
+import * as encrypt from "./crypto";
 import { cookieToJson } from "./cookie";
-import { EAPI_KEY } from "./config";
 import { fetchWithProxy } from "@main/utils/proxy";
 import type { RequestResponse } from "./request";
 
@@ -96,5 +95,3 @@ export const requestMeloXIosPlayerURL = async (
     cookie: setCookie.map((value) => value.replace(/\s*Domain=[^(;|$)]+;*/, "")),
   };
 };
-
-void EAPI_KEY;
