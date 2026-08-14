@@ -20,8 +20,13 @@ const serializeCookie = (cookie: Record<string, string>): string =>
     .map(([key, value]) => `${key}=${value}`)
     .join("; ");
 
-const parseCookie = (cookie: string | Record<string, string> | undefined): Record<string, string> =>
-  typeof cookie === "string" ? cookieToJson(cookie) : { ...(cookie || {}) };
+const parseCookie = (cookie: string | Record<string, string> | undefined): Record<string, string> => {
+  if (typeof cookie !== "string") return { ...(cookie || {}) };
+  const raw = cookie.trim();
+  if (!raw) return {};
+  if (!raw.includes("=")) return { MUSIC_U: raw };
+  return cookieToJson(raw);
+};
 
 export const requestMeloXIosPlayerURL = async (
   data: Record<string, unknown>,
