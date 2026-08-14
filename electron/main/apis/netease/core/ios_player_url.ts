@@ -1,18 +1,10 @@
-/**
- * MeloX iOS playback request for /api/song/enhance/player/url/v1.
- *
- * This intentionally mirrors MeloX's unauthenticated iOS EAPI path instead
- * of going through the generic Netease request cookie serializer.
- */
-
 import * as encrypt from "./crypto";
 import { cookieToJson } from "./cookie";
 import { fetchWithProxy } from "@main/utils/proxy";
 import type { RequestResponse } from "./request";
 
-const URI = "/api/song/enhance/player/url/v1";
 const DOMAIN = "https://interface.music.163.com";
-const USER_AGENT =
+const IOS_USER_AGENT =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
 
 const serializeCookie = (cookie: Record<string, string>): string =>
@@ -20,24 +12,29 @@ const serializeCookie = (cookie: Record<string, string>): string =>
     .map(([key, value]) => `${key}=${value}`)
     .join("; ");
 
-const parseCookie = (cookie: string | Record<string, string> | undefined): Record<string, string> => {
-  if (typeof cookie !== "string") return { ...(cookie || {}) };
-  const raw = cookie.trim();
-  if (!raw) return {};
-  if (!raw.includes("=")) return { MUSIC_U: raw };
-  return cookieToJson(raw);
-};
+const parseCookie = (
+  cookie: string | Record<string, string> | undefined,
+): Record<string, string> =>
+  typeof cookie === "string" ? cookieToJson(cookie) : { ...(cookie || {}) };
 
-export const requestMeloXIosPlayerURL = async (
+/**
+ * MeloX iOS unauthenticated EAPI request path.
+ *
+ * This intentionally bypasses SPlayer's generic Netease request serializer so
+ * player/download URL requests use the same client identity, cookie handling,
+ * EAPI payload, UA and HTTP transport as MeloX.
+ */
+export const requestMeloXIosEapi = async (
+  uri: string,
   data: Record<string, unknown>,
   cookieInput?: string | Record<string, string>,
 ): Promise<RequestResponse> => {
   const cookie = parseCookie(cookieInput);
-  cookie["os"] = cookie["os"] || "ios";
-  cookie["appver"] = cookie["appver"] || "9.0.90";
-  cookie["__remember_me"] = "true";
+  cookie.os = cookie.os || "ios";
+  cookie.appver = cookie.appver || "9.0.90";
+  cookie.__remember_me = "true";
 
-  const csrf = cookie["__csrf"] || "";
+  const csrf = cookie.__csrf || "";
   const header: Record<string, string> = {
     os: "ios",
     appver: "9.0.90",
@@ -55,21 +52,24 @@ export const requestMeloXIosPlayerURL = async (
     header,
     e_r: false,
   };
-  const { params } = encrypt.eapi(URI, requestData);
+  const { params } = encrypt.eapi(uri, requestData);
   const body = new URLSearchParams({ params }).toString();
 
   let response: Response;
   try {
-    response = await fetchWithProxy(`${DOMAIN}/eapi/song/enhance/player/url/v1`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": USER_AGENT,
-        Cookie: serializeCookie(cookie),
+    response = await fetchWithProxy(
+      `${DOMAIN}${uri.replace("/api/", "/eapi/")}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": IOS_USER_AGENT,
+          Cookie: serializeCookie(cookie),
+        },
+        body,
+        signal: AbortSignal.timeout(15000),
       },
-      body,
-      signal: AbortSignal.timeout(15000),
-    });
+    );
   } catch (error) {
     return {
       status: 502,
@@ -100,3 +100,6 @@ export const requestMeloXIosPlayerURL = async (
     cookie: setCookie.map((value) => value.replace(/\s*Domain=[^(;|$)]+;*/, "")),
   };
 };
+
+/** Backward-compatible name for the player URL call site. */
+export const requestMeloXIosPlayerURL = requestMeloXIosEapi;
