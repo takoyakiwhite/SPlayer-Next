@@ -1,3 +1,10 @@
+/**
+ * Netease API 加解密层
+ *
+ * - 加密方式：weapi（web 端）、linuxapi（Linux 客户端）、eapi（桌面/移动客户端）、xeapi（反爬）
+ * - 各对应对称密钥 + RSA 公钥；全部用 Node 原生 node:crypto 实现，不引第三方加密库
+ */
+
 import {
   createCipheriv,
   createDecipheriv,
@@ -13,13 +20,6 @@ import {
 } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { BASE62, EAPI_KEY, IV, LINUX_API_KEY, PRESET_KEY, PUBLIC_KEY } from "./config";
-
-/**
- * Netease API 加解密层
- *
- * - 加密方式：weapi（web 端）、linuxapi（Linux 客户端）、eapi（桌面/移动客户端）、xeapi（反爬）
- * - 各对应对称密钥 + RSA 公钥；全部用 Node 原生 node:crypto 实现，不引第三方加密库
- */
 
 /** AES 加密 */
 export const aesEncrypt = (
@@ -52,7 +52,7 @@ export const aesDecrypt = (
   return Buffer.concat([decipher.update(input), decipher.final()]);
 };
 
-/** weapi 裸 RSA */
+/** RSA 加密 */
 export const rsaEncrypt = (str: string, publicKey: string = PUBLIC_KEY): string => {
   const buffer = Buffer.alloc(128);
   const data = Buffer.from(str, "utf8");
@@ -80,11 +80,7 @@ export const linuxapi = (object: unknown): { eparams: string } => {
   return { eparams: aesEncrypt(text, "ecb", LINUX_API_KEY, "", "hex") };
 };
 
-/**
- * 递归按键名排序 JSON 对象。
- * Swift JSONSerialization(options: [.sortedKeys]) 会对对象键按字典序稳定排序；
- * 为了让 Node 侧 EAPI 明文与 MeloX iOS 完全一致，这里显式复现该行为。
- */
+/** eapi 明文使用稳定键序，与 MeloX 的 JSONSerialization(.sortedKeys) 对齐 */
 const sortJsonKeys = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(sortJsonKeys);
   if (!value || typeof value !== "object") return value;
@@ -132,15 +128,12 @@ export const eapiReqDecrypt = (encryptedHex: string): { url: string; data: unkno
 
 // ---- xeapi（反爬加密）----
 
-/** xeapi 固定对称密钥（AES-256-ECB） */
 const XEAPI_STATIC_KEY = Buffer.from(
   "ab1d5a430f6bb04a3f01e81ddd72bd916d5ce591248ac128714806d7f8fb1b84",
   "hex",
 );
-/** xeapi 签名密钥（HMAC-SHA256，按字符串原样作为 key，不解码） */
 const XEAPI_SIGN_KEY =
   "mUHCwVNWJbunMqAHf5MImuirT6plvs6VSFW62MGHstFQxhBGdEoIhLItH3djc4+FB/OKty3+lL2rGeoFBpVe5g==";
-/** X25519 公钥的 RFC 8410 SPKI 固定前缀 */
 const X25519_SPKI_PREFIX = Buffer.from("302a300506032b656e032100", "hex");
 
 export interface XeapiPublicKey {
@@ -221,9 +214,17 @@ const buildXeapiPlaintext = (
   if (contentType.split(";", 1)[0].toLowerCase() !== "application/x-www-form-urlencoded") {
     fields.contentType = contentType;
   }
-  fields.body = Buffer.from(new URLSearchParams(data as Record<string, string>).toString()).toString("base64");
-  fields.queryString = "e_r=true";
-  fields.method = options.method || "POST";
+  const method = (options.method || "POST").toUpperCase();
+  if (method !== "POST") fields.method = method;
+  const url = new URL(uri, "https://interface.music.163.com");
+  if (url.search) fields.queryString = url.search.slice(1);
+  if (data !== undefined && data !== null) {
+    const bodyData = { ...data };
+    delete bodyData.e_r;
+    const body = new URLSearchParams(bodyData as Record<string, string>).toString();
+    fields.body = Buffer.from(body).toString("base64");
+  }
+  fields.queryString = fields.queryString ? `${fields.queryString}&e_r=true` : "e_r=true";
   return JSON.stringify(fields);
 };
 
@@ -231,39 +232,30 @@ export const xeapi = (
   uri: string,
   data: Record<string, unknown>,
   options: XeapiOptions,
-): Record<string, string> => {
+): { B: string; S: string; R: string } => {
+  const { publicKeyState } = options;
+  const activeSessionKey = options.sessionKey ? Buffer.from(String(options.sessionKey)) : null;
+  const activeSessionId = options.sessionId || "";
+  const dynamicKey = activeSessionKey || randomBytes(16);
   const plaintext = Buffer.from(buildXeapiPlaintext(uri, data, options));
-  const dynamicKey = options.sessionKey
-    ? Buffer.from(options.sessionKey, "base64")
-    : randomBytes(16);
-  const staticEncrypted = aesEcbEncrypt(XEAPI_STATIC_KEY, plaintext);
-  const mid = xeapiMidTransform(staticEncrypted);
-  const b = aesEcbEncrypt(dynamicKey, mid);
-  const s = xeapiEncryptS(dynamicKey, options.publicKeyState, options.os || "android");
+  const b = aesEcbEncrypt(
+    dynamicKey,
+    xeapiMidTransform(aesEcbEncrypt(XEAPI_STATIC_KEY, plaintext)),
+  );
+  const s = xeapiEncryptS(dynamicKey, publicKeyState, options.os || "android");
   const r = aesEcbEncrypt(
     XEAPI_STATIC_KEY,
-    Buffer.from(`${options.publicKeyState.version}|${options.sessionKey ? options.sessionId || "" : ""}`),
+    Buffer.from(`${publicKeyState.version}|${activeSessionKey ? activeSessionId : ""}`),
   );
-  return {
-    B: b.toString("base64"),
-    S: s.toString("base64"),
-    R: r.toString("base64"),
-  };
+  return { B: b.toString("base64"), S: s.toString("base64"), R: r.toString("base64") };
 };
 
-const stripOptionalGzip = (data: Buffer): Buffer => {
-  if (data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b) return gunzipSync(data);
-  return data;
+export const xeapiResDecrypt = (body: Buffer): unknown => {
+  const decrypted = aesEcbDecrypt(Buffer.from(EAPI_KEY, "utf8"), body);
+  const plaintext =
+    decrypted[0] === 0x1f && decrypted[1] === 0x8b ? gunzipSync(decrypted) : decrypted;
+  return JSON.parse(plaintext.toString());
 };
 
-export const xeapiResDecrypt = (data: Buffer): unknown => {
-  try {
-    return JSON.parse(stripOptionalGzip(data).toString("utf8"));
-  } catch {
-    try {
-      return JSON.parse(gunzipSync(data).toString("utf8"));
-    } catch {
-      return null;
-    }
-  }
-};
+export const xeapiDecryptPublicKey = (encryptedData: string): XeapiPublicKey =>
+  JSON.parse(aesEcbDecrypt(XEAPI_STATIC_KEY, Buffer.from(encryptedData, "base64")).toString());
