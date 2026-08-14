@@ -11,14 +11,11 @@
  * - freeTrialInfo != null：仅 30s 试听片段
  */
 
-import { cookieToJson } from "../core/cookie";
+import { requestMeloXIosPlayerURL } from "../core/ios_player_url";
 import { createOption } from "../core/option";
 import type { NeteaseModule } from "../core/types";
 
-const IOS_USER_AGENT =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
-
-const song_url: NeteaseModule = (query, request) => {
+const song_url: NeteaseModule = async (query) => {
   const ids = query.id ?? query.ids;
   const data = {
     ids: `[${String(ids).split(",").join(",")}]`,
@@ -26,26 +23,9 @@ const song_url: NeteaseModule = (query, request) => {
     encodeType: "flac",
   };
 
-  const cookie =
-    typeof query.cookie === "string"
-      ? cookieToJson(query.cookie)
-      : { ...(query.cookie ?? {}) };
-
-  // 与 MeloX iOS 播放请求保持一致：EAPI + iOS 18.0 UA/客户端身份。
-  return request(
-    "/api/song/enhance/player/url/v1",
-    data,
-    createOption({
-      ...query,
-      crypto: "eapi",
-      ua: IOS_USER_AGENT,
-      cookie: {
-        ...cookie,
-        os: "ios",
-        appver: "9.0.90",
-      },
-    }),
-  );
+  // player/url/v1 固定使用 MeloX iOS EAPI 请求，完全绕过通用请求层。
+  void createOption;
+  return requestMeloXIosPlayerURL(data, query.cookie);
 };
 
 export default song_url;
