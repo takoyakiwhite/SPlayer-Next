@@ -28,7 +28,7 @@ const song_download_url: NeteaseModule = (query, request) => {
       ? cookieToJson(query.cookie)
       : { ...(query.cookie ?? {}) };
 
-  // 与 MeloX iOS 下载请求保持一致：EAPI + iOS 18.0 环境。
+  // 与 MeloX iOS 下载请求保持一致：EAPI + iOS 18.0 UA/客户端身份。
   return request(
     "/api/song/enhance/download/url/v1",
     data,
@@ -40,8 +40,6 @@ const song_download_url: NeteaseModule = (query, request) => {
         ...cookie,
         os: "ios",
         appver: "9.0.90",
-        osver: "18.0",
-        channel: "distribution",
       },
     }),
   );
