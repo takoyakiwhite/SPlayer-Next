@@ -1,0 +1,40 @@
+name: Apply floating bar fix
+
+on:
+  push:
+    branches:
+      - fix-upstream-floating-bar-20260815
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch SongList
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/components/list/SongList.vue")
+          s = p.read_text()
+          s = s.replace(
+              'import { PLAYER_BAR_GAP } from "@/composables/useFloatingPlayerBar";',
+              'import { useFloatingPlayerBar } from "@/composables/useFloatingPlayerBar";',
+              1,
+          )
+          old = '''/** 悬浮布局且播放栏可见时 */
+          const isFloatingPlayerBar = computed(
+            () => settings.appearance.layoutMode === "floating" && !!media.track,
+          );'''
+          new = 'const { isFloatingBar: isFloatingPlayerBar, PLAYER_BAR_GAP } = useFloatingPlayerBar();'
+          if old not in s:
+              raise SystemExit("floating player bar block not found")
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/list/SongList.vue
+          git commit -m "fix: align SongList with upstream floating player bar"
+          git push
