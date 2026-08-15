@@ -16,11 +16,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply upstream floating-player-bar refactor
+      - name: Apply upstream SongList refactor
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
           song = Path("src/components/list/SongList.vue")
           text = song.read_text()
           old_import = 'import { PLAYER_BAR_GAP } from "@/composables/useFloatingPlayerBar";'
@@ -34,27 +33,13 @@ jobs:
               raise SystemExit("SongList import pattern not found")
           if old_state not in text:
               raise SystemExit("SongList floating-bar state pattern not found")
-          text = text.replace(old_import, new_import, 1).replace(old_state, new_state, 1)
-          song.write_text(text)
-
-          composable = Path("src/composables/useFloatingPlayerBar.ts")
-          text = composable.read_text()
-          old_const = 'export const PLAYER_BAR_GAP = 112;'
-          new_const = 'const PLAYER_BAR_GAP = 112;'
-          old_return = 'return { isFloatingBar };'
-          new_return = 'return { isFloatingBar, PLAYER_BAR_GAP };'
-          if old_const not in text:
-              raise SystemExit("PLAYER_BAR_GAP export pattern not found")
-          if old_return not in text:
-              raise SystemExit("composable return pattern not found")
-          text = text.replace(old_const, new_const, 1).replace(old_return, new_return, 1)
-          composable.write_text(text)
+          song.write_text(text.replace(old_import, new_import, 1).replace(old_state, new_state, 1))
           PY
 
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/list/SongList.vue src/composables/useFloatingPlayerBar.ts
-          git diff --cached --quiet || git commit -m "fix: align floating player bar with upstream"
+          git add src/components/list/SongList.vue
+          git diff --cached --quiet || git commit -m "fix: align SongList with upstream floating player bar"
           git push
