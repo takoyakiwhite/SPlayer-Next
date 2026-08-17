@@ -27,7 +27,8 @@ const NETEASE_LEVEL: Record<QualityLevel, string> = {
 };
 
 export type NeteasePlayUrlResult =
-  { available: true; url: string; isTrial: boolean } | { available: false; errorCode: ErrorCode };
+  | { available: true; url: string; isTrial: boolean; level?: string }
+  | { available: false; errorCode: ErrorCode };
 
 export interface NeteaseSessionRecovery {
   /** 发起请求前是否处于登录状态 */
@@ -45,9 +46,14 @@ export const classifyNeteasePlayUrl = (item: unknown): NeteasePlayUrlResult => {
   if (!item || typeof item !== "object") {
     return { available: false, errorCode: ErrorCode.NETEASE_UNAVAILABLE };
   }
-  const data = item as { url?: unknown; freeTrialInfo?: unknown; fee?: unknown };
+  const data = item as { url?: unknown; freeTrialInfo?: unknown; fee?: unknown; level?: string };
   if (typeof data.url === "string" && data.url) {
-    return { available: true, url: data.url, isTrial: data.freeTrialInfo != null };
+    return {
+      available: true,
+      url: data.url,
+      isTrial: data.freeTrialInfo != null,
+      level: data.level,
+    };
   }
   const fee = Number(data.fee);
   if (fee === 1 || fee === 4) {
