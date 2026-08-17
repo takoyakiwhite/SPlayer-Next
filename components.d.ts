@@ -207,6 +207,7 @@ declare module 'vue' {
     QualityControl: typeof import('./src/components/player/QualityControl.vue')['default']
     QueuePanel: typeof import('./src/components/player/FullPlayer/QueuePanel.vue')['default']
     QueuePopover: typeof import('./src/components/list/QueuePopover.vue')['default']
+    RecognitionDialog: typeof import('./src/components/modals/RecognitionDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SAlert: typeof import('./src/components/ui/SAlert.vue')['default']
