@@ -1,0 +1,72 @@
+name: Temporary upstream sync
+
+on:
+  push:
+    branches:
+      - sync-upstream-20260817
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sync branch
+        uses: actions/checkout@v5
+        with:
+          ref: sync-upstream-20260817
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
+          git fetch upstream dev
+
+          if git merge-base --is-ancestor upstream/dev HEAD; then
+            echo "Upstream is already contained; nothing to do."
+            exit 0
+          fi
+
+          git merge upstream/dev --no-edit --no-ff || true
+
+          conflicts="$(git diff --name-only --diff-filter=U)"
+          if [ -n "$conflicts" ]; then
+            allowed=$'.github/workflows/dev.yml\ncomponents.d.ts'
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              if ! grep -Fxq "$file" <<< "$allowed"; then
+                echo "Unexpected merge conflict: $file"
+                exit 1
+              fi
+            done <<< "$conflicts"
+
+            git checkout --theirs components.d.ts
+            git checkout --theirs .github/workflows/dev.yml
+            python3 - <<'PY'
+from pathlib import Path
+p = Path('.github/workflows/dev.yml')
+text = p.read_text()
+marker = '  NODE_VERSION: 22.x\n'
+tls = '  NODE_TLS_REJECT_UNAUTHORIZED: "0"\n'
+if tls not in text:
+    text = text.replace(marker, marker + tls, 1)
+p.write_text(text)
+PY
+            git add components.d.ts .github/workflows/dev.yml
+          fi
+
+          if git diff --name-only --diff-filter=U | grep -q .; then
+            echo "Unresolved merge conflicts remain."
+            exit 1
+          fi
+
+          git rm -f .github/workflows/sync-upstream-temp.yml || true
+          git add -A
+          git commit -m "sync: merge latest upstream dev"
+          git push origin HEAD:sync-upstream-20260817
