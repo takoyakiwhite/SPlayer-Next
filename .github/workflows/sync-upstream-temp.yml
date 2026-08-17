@@ -12,54 +12,21 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sync branch
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           ref: sync-upstream-20260817
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Merge upstream
-        shell: bash
+      - shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
           git fetch upstream dev
-
-          if git merge-base --is-ancestor upstream/dev HEAD; then
-            echo "Upstream is already contained; nothing to do."
-            exit 0
-          fi
-
-          if git merge upstream/dev --no-edit --no-ff --no-commit; then
-            :
-          else
-            conflicts="$(git diff --name-only --diff-filter=U)"
-            allowed=$'.github/workflows/dev.yml\ncomponents.d.ts'
-            while IFS= read -r file; do
-              [ -z "$file" ] && continue
-              if ! grep -Fxq "$file" <<< "$allowed"; then
-                echo "Unexpected merge conflict: $file"
-                exit 1
-              fi
-            done <<< "$conflicts"
-            git checkout --ours .github/workflows/dev.yml
-            git checkout --theirs components.d.ts
-            git add .github/workflows/dev.yml components.d.ts
-          fi
-
-          # Preserve the fork-specific workflow customization in the merge commit.
-          # The merged upstream workflow is applied afterward through the GitHub API,
-          # avoiding GitHub App workflow-file push restrictions.
-          git checkout HEAD -- .github/workflows/dev.yml
-          git add .github/workflows/dev.yml
-
-          if git diff --name-only --diff-filter=U | grep -q .; then
-            echo "Unresolved merge conflicts remain."
-            exit 1
-          fi
-
+          git merge upstream/dev --no-edit --no-ff --no-commit
+          git checkout HEAD -- .github/workflows/dev.yml .github/workflows/release.yml
+          git add .github/workflows/dev.yml .github/workflows/release.yml
+          if git diff --name-only --diff-filter=U | grep -q .; then exit 1; fi
           git commit -m "sync: merge latest upstream dev"
           git push origin HEAD:sync-upstream-20260817
