@@ -23,6 +23,7 @@ on:
 
 env:
   NODE_VERSION: 22.x
+  NODE_TLS_REJECT_UNAUTHORIZED: "0"
 
 jobs:
   build:
