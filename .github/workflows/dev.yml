@@ -19,10 +19,6 @@ on:
       - "electron.vite.config.ts"
       - "tsconfig*.json"
       - ".github/workflows/dev.yml"
-  pull_request:
-    types: [opened]
-    branches:
-      - dev
   workflow_dispatch:
 
 env:
@@ -81,14 +77,16 @@ jobs:
         with:
           workspaces: "native/audio-engine -> target\nnative/audio-capture -> target\nnative/media-ctrl -> target"
 
+      # Linux: 安装系统构建/打包依赖
       - name: 安装系统依赖 (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libdbus-1-dev libpulse-dev pkg-config clang \
+            libasound2-dev libdbus-1-dev libpipewire-0.3-dev libpulse-dev pkg-config clang \
             rpm libarchive-tools
 
+      # 清理旧构建产物
       - name: Clean workspace on Windows
         if: runner.os == 'Windows'
         run: |
@@ -99,19 +97,23 @@ jobs:
         if: runner.os != 'Windows'
         run: rm -rf dist out
 
+      # CI 不需要国内镜像
       - name: 移除 .npmrc
         shell: bash
         run: rm -f .npmrc
 
+      # 安装项目依赖
       - name: Install dependencies
         run: pnpm install
 
+      # 构建
       - name: Build ${{ matrix.name }} ${{ matrix.arch }}
         run: ${{ matrix.build_cmd }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      # 上传构建产物 (Windows)
       - name: Upload Windows Setup
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
@@ -119,6 +121,7 @@ jobs:
           name: SPlayer-Next-Windows-setup-${{ matrix.arch }}
           path: dist/*-setup.exe
 
+      # 上传构建产物 (macOS)
       - name: Upload macOS DMG
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v7
@@ -133,6 +136,7 @@ jobs:
           name: SPlayer-Next-macOS-zip-${{ matrix.arch }}
           path: dist/*.zip
 
+      # 上传构建产物 (Linux)
       - name: Upload Linux AppImage
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7
@@ -167,128 +171,3 @@ jobs:
         with:
           name: SPlayer-Next-Linux-pacman-${{ matrix.arch }}
           path: dist/*.pacman
-
-  sync-upstream-once:
-    if: (github.event_name == 'push' && github.event.head_commit.message == 'chore: prepare upstream sync') || (github.event_name == 'pull_request' && github.event.action == 'opened')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout target dev
-        uses: actions/checkout@v4
-        with:
-          ref: dev
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Merge upstream and preserve custom changes
-        shell: bash
-        env:
-          BASE: 72cfea2b7df4d9791f5a51dab8dff9e7db6de8d6
-          CUSTOM_ONLY: |
-            .merkle-snapshot.json
-            electron/main/apis/netease/core/crypto.ts
-            electron/main/apis/netease/core/ios_player_url.ts
-            electron/main/apis/netease/core/request.ts
-            electron/main/apis/netease/modules/song_download_url.ts
-            electron/main/apis/netease/modules/song_url.ts
-            electron/main/core/index.ts
-            electron/main/index.ts
-            shared/types/player.ts
-            src/apis/song/netease.ts
-            src/core/player/index.ts
-            src/utils/format/netease.ts
-            src/utils/quality.ts
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
-          git fetch upstream dev --prune
-
-          mkdir -p /tmp/splayer-custom /tmp/splayer-hashes
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            mkdir -p "/tmp/splayer-custom/$(dirname "$f")"
-            git show "HEAD:$f" > "/tmp/splayer-custom/$f"
-            sha256sum "/tmp/splayer-custom/$f" | cut -d' ' -f1 > "/tmp/splayer-hashes/$f.sha256"
-          done <<< "$CUSTOM_ONLY"
-
-          git merge --no-ff --no-commit upstream/dev || true
-          mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
-          for f in "${conflicts[@]}"; do
-            case "$f" in
-              .github/workflows/dev.yml|.github/workflows/release.yml)
-                git checkout --theirs -- "$f"
-                python - "$f" <<'PY'
-from pathlib import Path
-import sys
-p = Path(sys.argv[1])
-s = p.read_text()
-needle = 'NODE_TLS_REJECT_UNAUTHORIZED: "0"'
-if needle not in s:
-    marker = '\nenv:\n'
-    if marker not in s:
-        raise SystemExit(f'cannot locate env section in {p}')
-    s = s.replace(marker, marker + '  ' + needle + '\n', 1)
-p.write_text(s)
-PY
-                git add -- "$f"
-                ;;
-              src/services/audioSource.ts)
-                git show "HEAD:$f" > /tmp/audio-ours.ts
-                git show "$BASE:$f" > /tmp/audio-base.ts
-                git show "upstream/dev:$f" > /tmp/audio-theirs.ts
-                git merge-file --ours -p /tmp/audio-ours.ts /tmp/audio-base.ts /tmp/audio-theirs.ts > "$f" || true
-                git add -- "$f"
-                ;;
-              *)
-                echo "Unexpected merge conflict: $f" >&2
-                exit 1
-                ;;
-            esac
-          done
-
-          if git diff --name-only --diff-filter=U | grep -q .; then
-            echo "Unresolved conflicts remain" >&2
-            git diff --name-only --diff-filter=U >&2
-            exit 1
-          fi
-
-          python - <<'PY'
-from pathlib import Path
-for name in ('.github/workflows/dev.yml', '.github/workflows/release.yml'):
-    p = Path(name)
-    s = p.read_text()
-    needle = 'NODE_TLS_REJECT_UNAUTHORIZED: "0"'
-    if needle not in s:
-        marker = '\nenv:\n'
-        if marker not in s:
-            raise SystemExit(f'cannot locate env section in {name}')
-        s = s.replace(marker, marker + '  ' + needle + '\n', 1)
-        p.write_text(s)
-PY
-          git add -- .github/workflows/dev.yml .github/workflows/release.yml src/services/audioSource.ts
-
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            expected=$(cat "/tmp/splayer-hashes/$f.sha256")
-            actual=$(sha256sum "$f" | cut -d' ' -f1)
-            if [ "$expected" != "$actual" ]; then
-              echo "Custom file changed unexpectedly: $f" >&2
-              exit 1
-            fi
-          done <<< "$CUSTOM_ONLY"
-
-          grep -q 'NODE_TLS_REJECT_UNAUTHORIZED: "0"' .github/workflows/dev.yml
-          grep -q 'NODE_TLS_REJECT_UNAUTHORIZED: "0"' .github/workflows/release.yml
-          grep -q 'hiRes' src/services/audioSource.ts
-          grep -q 'resolveByPlugin(track, "hq"' src/services/audioSource.ts
-          git diff --check
-
-          corepack enable
-          pnpm install --frozen-lockfile --ignore-scripts >/tmp/pnpm-install.log 2>&1 || true
-          pnpm typecheck >/tmp/pnpm-typecheck.log 2>&1 || true
-
-          git commit -m "chore: sync dev with upstream and preserve custom changes"
-          git push origin HEAD:dev
