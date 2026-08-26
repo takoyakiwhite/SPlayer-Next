@@ -11,23 +11,16 @@
  * - freeTrialInfo != null：仅 30s 试听片段
  */
 
-<<<<<<< HEAD
 import { requestMeloXIosPlayerURL } from "../core/ios_player_url";
-=======
-import { cookieToJson } from "../core/cookie";
-import { createOption } from "../core/option";
->>>>>>> upstream/dev
 import type { NeteaseModule } from "../core/types";
 
 const song_url: NeteaseModule = async (query) => {
   const ids = query.id ?? query.ids;
-  const level = String(query.level ?? "exhigh");
-  const data: Record<string, unknown> = {
+  const data = {
     ids: `[${String(ids).split(",").join(",")}]`,
-    level,
+    level: query.level ?? "exhigh",
     encodeType: "flac",
   };
-<<<<<<< HEAD
 
   // player/url/v1 固定使用 MeloX iOS EAPI 请求，完全绕过通用请求层。
   return requestMeloXIosPlayerURL(
@@ -35,22 +28,6 @@ const song_url: NeteaseModule = async (query) => {
     data,
     query.cookie,
   );
-=======
-  if (level === "sky") {
-    data.immerseType = query.immerseType ?? "c51";
-  }
-  const option = createOption(query, "xeapi");
-  if (level === "vivid") {
-    data.encodeType = "mp3";
-    const cookie = option.cookie;
-    option.cookie = {
-      ...(typeof cookie === "string" ? cookieToJson(cookie) : cookie),
-      os: "android",
-      appver: "9.5.61",
-    };
-  }
-  return request("/api/song/enhance/player/url/v1", data, option);
->>>>>>> upstream/dev
 };
 
 export default song_url;
