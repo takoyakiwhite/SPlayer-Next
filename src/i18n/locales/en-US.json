@@ -472,7 +472,10 @@
       "loading": "Starting Personal FM…",
       "entered": "Personal FM started",
       "already": "Already in Personal FM",
-      "failed": "Failed to start Personal FM, please try again later"
+      "failed": "Failed to start Personal FM, please try again later",
+      "modeSettings": "Personal FM Mode",
+      "modeTooltip": "FM Mode & Scene",
+      "modeSettingsTip": "Select preferred recommendation mode and scene"
     },
     "lyricOffset": {
       "title": "Lyric Offset",
@@ -729,6 +732,7 @@
       "about": "About"
     },
     "section": {
+      "platformLogin": "Platform Login",
       "network": "Network & Proxy",
       "aboutApp": "About",
       "specialThanks": "Special Thanks",
@@ -929,6 +933,25 @@
     "detectBackgroundLyrics": {
       "label": "Auto-Detect Background Lyrics",
       "description": "Detect backing vocals from brackets. Disable this if lyrics are misdetected"
+    },
+    "cjkTransform": {
+      "label": "Chinese Conversion",
+      "description": "Convert lyric text between Simplified and Traditional Chinese or Japanese Kanji",
+      "none": "Off",
+      "s2t": "Simplified → Traditional",
+      "t2s": "Traditional → Simplified",
+      "s2tw": "Simplified → Traditional (Taiwan)",
+      "tw2s": "Traditional (Taiwan) → Simplified",
+      "s2hk": "Simplified → Traditional (Hong Kong)",
+      "hk2s": "Traditional (Hong Kong) → Simplified",
+      "s2twp": "Simplified → Traditional (Taiwan)",
+      "tw2sp": "Traditional (Taiwan) → Simplified",
+      "t2tw": "Traditional → Traditional (Taiwan)",
+      "tw2t": "Traditional (Taiwan) → Traditional",
+      "t2hk": "Traditional → Traditional (Hong Kong)",
+      "hk2t": "Traditional (Hong Kong) → Traditional",
+      "jp2t": "Japanese Shinjitai → Traditional",
+      "t2jp": "Traditional → Japanese Shinjitai"
     },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
@@ -1569,6 +1592,25 @@
         "disconnected": "Disconnected from Last.fm"
       }
     },
+    "platformLogin": {
+      "title": "Log in to {name} Account",
+      "desc": "Log in to retrieve playback streams directly from the platform",
+      "vipTag": " · VIP Member",
+      "loginWeb": "Web Login",
+      "manualCookie": "Cookie Login",
+      "logout": "Log Out",
+      "logoutTitle": "Log Out from {name}",
+      "logoutConfirm": "Are you sure you want to log out of current {name} account ({user})?",
+      "cookieTitle": "Set {name} Cookie",
+      "cookiePlaceholder": "Please enter Cookie",
+      "toast": {
+        "loginSuccess": "{name} login successful: {user}",
+        "loginFailed": "{name} login failed, please try again",
+        "logoutDone": "Logged out from {name}",
+        "cookieSuccess": "{name} Cookie set successfully",
+        "cookieInvalid": "Invalid Cookie, please check and retry"
+      }
+    },
     "rememberWindowState": {
       "label": "Remember Window State",
       "description": "Restore window size, position and maximized state on next launch"
@@ -2126,6 +2168,7 @@
     "SCAN_DIR_NOT_SELECTED": "No directory selected",
     "TAG_READ_FAILED": "Failed to read tags",
     "TAG_WRITE_FAILED": "Failed to write tags",
+    "MAX_CONSECUTIVE_FAILURES": "Too many consecutive playback failures",
     "UNKNOWN": "Operation failed"
   },
   "tagEditor": {
