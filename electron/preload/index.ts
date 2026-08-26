@@ -25,6 +25,7 @@ import type {
   PlaylistCreateInput,
   PlaylistUpdateInput,
 } from "@shared/types/playlist";
+import type { CjkTransformMode } from "@shared/types/opencc";
 
 /** 订阅主进程推送的事件 */
 const subscribe = <T>(channel: string, callback: (data: T) => void): (() => void) => {
@@ -113,10 +114,10 @@ const api = {
     getOutputDevices: () => ipcRenderer.invoke("player:getOutputDevices"),
     // 获取系统默认输出设备名称
     getDefaultDeviceName: () => ipcRenderer.invoke("player:getDefaultDeviceName"),
-    // 切换输出设备（传 null 使用系统默认）
-    setOutputDevice: (deviceName: string | null, pauseBeforeSwitch = false) =>
-      ipcRenderer.invoke("player:setOutputDevice", deviceName, pauseBeforeSwitch),
-    // 获取当前选择的输出设备名称
+    // 切换输出设备（传设备 ID，null 使用系统默认）
+    setOutputDevice: (deviceId: string | null, pauseBeforeSwitch = false) =>
+      ipcRenderer.invoke("player:setOutputDevice", deviceId, pauseBeforeSwitch),
+    // 获取当前选择的输出设备 ID
     getSelectedDeviceName: () => ipcRenderer.invoke("player:getSelectedDeviceName"),
     // 获取当前歌曲的原始高清封面（base64 data URL）
     getCoverRaw: () => ipcRenderer.invoke("player:getCoverRaw"),
@@ -415,6 +416,14 @@ const api = {
     matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
     // 选择本地 TTML 歌词库目录
     pickLyricRepoDir: () => ipcRenderer.invoke("lyrics:pickLyricRepoDir"),
+  },
+  opencc: {
+    // 转换单个文本
+    convert: (text: string, config: CjkTransformMode): Promise<string> =>
+      ipcRenderer.invoke("opencc:convert", text, config),
+    // 批量转换文本
+    convertBatch: (texts: string[], config: CjkTransformMode): Promise<string[]> =>
+      ipcRenderer.invoke("opencc:convertBatch", texts, config),
   },
   comments: {
     sources: () => ipcRenderer.invoke("comments:sources"),
