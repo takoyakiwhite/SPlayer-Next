@@ -1,0 +1,78 @@
+name: Sync upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout downstream repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: dev
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
+
+      - name: Fetch upstream
+        run: git fetch upstream dev
+
+      - name: Check whether upstream is already included
+        id: check
+        shell: bash
+        run: |
+          if git merge-base --is-ancestor upstream/dev HEAD; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream without overwriting downstream changes
+        if: steps.check.outputs.needed == 'true'
+        id: merge
+        shell: bash
+        run: |
+          set +e
+          git merge --no-ff --no-edit upstream/dev
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            git merge --abort || true
+            exit 0
+          fi
+          echo "conflict=false" >> "$GITHUB_OUTPUT"
+
+      - name: Push successful sync
+        if: steps.check.outputs.needed == 'true' && steps.merge.outputs.conflict == 'false'
+        run: git push origin dev
+
+      - name: Create conflict branch
+        if: steps.check.outputs.needed == 'true' && steps.merge.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          BRANCH="sync-upstream-conflict-${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
+          git merge --no-commit --no-ff upstream/dev || true
+          git add -A
+          git commit -m "chore: prepare upstream sync conflict" || true
+          git push origin "$BRANCH"
+          gh pr create \
+            --base dev \
+            --head "$BRANCH" \
+            --title "chore: resolve upstream sync conflicts" \
+            --body "Automatic sync from SPlayer-Dev/SPlayer-Next:dev encountered merge conflicts. The dev branch was not modified. Resolve this PR manually while preserving downstream changes."
