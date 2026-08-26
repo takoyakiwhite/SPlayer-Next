@@ -57,7 +57,7 @@ jobs:
             while IFS= read -r f; do
               [ -z "$f" ] && continue
               case "$f" in
-                $'\t'.github/workflows/*|.github/workflows/*)
+                .github/workflows/*)
                   git checkout --theirs -- "$f"
                   ;;
                 *)
@@ -79,7 +79,6 @@ jobs:
             git add -- "$f"
           done <<< "$CUSTOM_ONLY"
 
-          # Keep the downstream TLS compatibility setting used by this fork.
           for f in .github/workflows/dev.yml .github/workflows/release.yml; do
             if [ -f "$f" ] && ! grep -q 'NODE_TLS_REJECT_UNAUTHORIZED: "0"' "$f"; then
               python - "$f" <<'PY'
@@ -105,3 +104,5 @@ PY
           git diff --check
           git commit -m "chore: sync dev with upstream and preserve custom changes"
           git push origin HEAD:dev
+
+# trigger sync
