@@ -2,14 +2,14 @@ name: Sync upstream
 
 on:
   push:
-    branches: [dev]
+    branches:
+      - dev
 
 permissions:
   contents: write
 
 jobs:
   sync:
-    if: startsWith(github.event.head_commit.message, 'chore: trigger upstream sync')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -17,10 +17,8 @@ jobs:
         with:
           ref: dev
           fetch-depth: 0
-          persist-credentials: true
 
-      - name: Merge upstream and preserve downstream changes
-        shell: bash
+      - name: Sync upstream
         env:
           CUSTOM_ONLY: |
             electron/main/apis/netease/core/crypto.ts
@@ -38,6 +36,10 @@ jobs:
             src/utils/quality.ts
         run: |
           set -euo pipefail
+          if [[ "${{ github.event.head_commit.message }}" != chore:\ trigger\ upstream\ sync* ]]; then
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
@@ -50,28 +52,7 @@ jobs:
             git show "HEAD:$f" > "/tmp/custom/$f"
           done <<< "$CUSTOM_ONLY"
 
-          git merge --no-ff --no-edit --no-commit upstream/dev || true
-
-          conflicts=$(git diff --name-only --diff-filter=U || true)
-          if [ -n "$conflicts" ]; then
-            while IFS= read -r f; do
-              [ -z "$f" ] && continue
-              case "$f" in
-                .github/workflows/*)
-                  git checkout --theirs -- "$f"
-                  ;;
-                *)
-                  if printf '%s\n' "$CUSTOM_ONLY" | grep -Fxq "$f"; then
-                    git checkout --ours -- "$f"
-                  else
-                    echo "Unexpected merge conflict: $f" >&2
-                    exit 1
-                  fi
-                  ;;
-              esac
-              git add -- "$f"
-            done <<< "$conflicts"
-          fi
+          git merge -X ours --no-ff --no-edit upstream/dev
 
           while IFS= read -r f; do
             [ -z "$f" ] && continue
@@ -95,14 +76,6 @@ PY
             fi
           done
 
-          if git diff --name-only --diff-filter=U | grep -q .; then
-            echo "Unresolved conflicts remain" >&2
-            git diff --name-only --diff-filter=U >&2
-            exit 1
-          fi
-
           git diff --check
-          git commit -m "chore: sync dev with upstream and preserve custom changes"
+          git commit --allow-empty -m "chore: sync dev with upstream and preserve custom changes"
           git push origin HEAD:dev
-
-# trigger sync
