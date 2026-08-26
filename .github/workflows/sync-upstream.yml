@@ -1,0 +1,107 @@
+name: Sync upstream
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: startsWith(github.event.head_commit.message, 'chore: trigger upstream sync')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Merge upstream and preserve downstream changes
+        shell: bash
+        env:
+          CUSTOM_ONLY: |
+            electron/main/apis/netease/core/crypto.ts
+            electron/main/apis/netease/core/ios_player_url.ts
+            electron/main/apis/netease/core/request.ts
+            electron/main/apis/netease/modules/song_download_url.ts
+            electron/main/apis/netease/modules/song_url.ts
+            electron/main/core/index.ts
+            electron/main/index.ts
+            shared/types/player.ts
+            src/apis/song/netease.ts
+            src/core/player/index.ts
+            src/services/audioSource.ts
+            src/utils/format/netease.ts
+            src/utils/quality.ts
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
+          git fetch upstream dev --prune
+
+          mkdir -p /tmp/custom
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            mkdir -p "/tmp/custom/$(dirname "$f")"
+            git show "HEAD:$f" > "/tmp/custom/$f"
+          done <<< "$CUSTOM_ONLY"
+
+          git merge --no-ff --no-edit --no-commit upstream/dev || true
+
+          conflicts=$(git diff --name-only --diff-filter=U || true)
+          if [ -n "$conflicts" ]; then
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                $'\t'.github/workflows/*|.github/workflows/*)
+                  git checkout --theirs -- "$f"
+                  ;;
+                *)
+                  if printf '%s\n' "$CUSTOM_ONLY" | grep -Fxq "$f"; then
+                    git checkout --ours -- "$f"
+                  else
+                    echo "Unexpected merge conflict: $f" >&2
+                    exit 1
+                  fi
+                  ;;
+              esac
+              git add -- "$f"
+            done <<< "$conflicts"
+          fi
+
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            cp "/tmp/custom/$f" "$f"
+            git add -- "$f"
+          done <<< "$CUSTOM_ONLY"
+
+          # Keep the downstream TLS compatibility setting used by this fork.
+          for f in .github/workflows/dev.yml .github/workflows/release.yml; do
+            if [ -f "$f" ] && ! grep -q 'NODE_TLS_REJECT_UNAUTHORIZED: "0"' "$f"; then
+              python - "$f" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+marker = '\nenv:\n'
+if marker in s:
+    s = s.replace(marker, marker + '  NODE_TLS_REJECT_UNAUTHORIZED: "0"\n', 1)
+    p.write_text(s)
+PY
+              git add -- "$f"
+            fi
+          done
+
+          if git diff --name-only --diff-filter=U | grep -q .; then
+            echo "Unresolved conflicts remain" >&2
+            git diff --name-only --diff-filter=U >&2
+            exit 1
+          fi
+
+          git diff --check
+          git commit -m "chore: sync dev with upstream and preserve custom changes"
+          git push origin HEAD:dev
