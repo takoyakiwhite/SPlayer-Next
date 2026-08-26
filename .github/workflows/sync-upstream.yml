@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync:
@@ -30,49 +29,44 @@ jobs:
       - name: Fetch upstream
         run: git fetch upstream dev
 
-      - name: Check whether upstream is already included
-        id: check
+      - name: Sync upstream and preserve downstream changes
         shell: bash
         run: |
+          set -e
+
           if git merge-base --is-ancestor upstream/dev HEAD; then
-            echo "needed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream is already included; nothing to do."
+            exit 0
           fi
 
-      - name: Merge upstream without overwriting downstream changes
-        if: steps.check.outputs.needed == 'true'
-        id: merge
-        shell: bash
-        run: |
           set +e
           git merge --no-ff --no-edit upstream/dev
           status=$?
-          if [ "$status" -ne 0 ]; then
-            echo "conflict=true" >> "$GITHUB_OUTPUT"
-            git merge --abort || true
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "Upstream merged cleanly."
+            git push origin dev
             exit 0
           fi
-          echo "conflict=false" >> "$GITHUB_OUTPUT"
 
-      - name: Push successful sync
-        if: steps.check.outputs.needed == 'true' && steps.merge.outputs.conflict == 'false'
-        run: git push origin dev
+          echo "Upstream merge has conflicts. Preserving downstream (ours) for every conflicted file."
+          conflicts="$(git diff --name-only --diff-filter=U)"
 
-      - name: Create conflict branch
-        if: steps.check.outputs.needed == 'true' && steps.merge.outputs.conflict == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          BRANCH="sync-upstream-conflict-${GITHUB_RUN_ID}"
-          git checkout -b "$BRANCH"
-          git merge --no-commit --no-ff upstream/dev || true
-          git add -A
-          git commit -m "chore: prepare upstream sync conflict" || true
-          git push origin "$BRANCH"
-          gh pr create \
-            --base dev \
-            --head "$BRANCH" \
-            --title "chore: resolve upstream sync conflicts" \
-            --body "Automatic sync from SPlayer-Dev/SPlayer-Next:dev encountered merge conflicts. The dev branch was not modified. Resolve this PR manually while preserving downstream changes."
+          if [ -z "$conflicts" ]; then
+            echo "Merge failed without detectable conflict files. Aborting."
+            git merge --abort || true
+            exit "$status"
+          fi
+
+          echo "Conflicted files:"
+          printf '%s\n' "$conflicts"
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            git checkout --ours -- "$file"
+            git add -- "$file"
+          done <<< "$conflicts"
+
+          git commit -m "chore: sync upstream dev (preserve downstream changes)"
+          git push origin dev
