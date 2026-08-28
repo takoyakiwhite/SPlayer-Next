@@ -1,5 +1,5 @@
 import type { SettingCategory } from "@/types/settings-schema";
-import QQMusicPanel from "@/components/settings/custom/QQMusicPanel.vue";
+import PlatformAccount from "@/components/settings/custom/PlatformAccount.vue";
 import IconLucideSettings from "~icons/lucide/settings";
 
 const otherCategory: SettingCategory = {
@@ -8,16 +8,31 @@ const otherCategory: SettingCategory = {
   sections: [
     {
       id: "platformLogin",
+      tag: { text: "Beta" },
       items: [
         {
           key: "qmAccount",
           type: "custom",
-          component: QQMusicPanel,
+          component: PlatformAccount,
+          componentProps: { platform: "qqmusic" },
           fullWidth: true,
           keywords: [
             "settings.platformLogin.title",
             "settings.platformLogin.desc",
             "settings.platformLogin.loginWeb",
+            "settings.platformLogin.manualCookie",
+          ],
+        },
+        {
+          key: "kgAccount",
+          type: "custom",
+          component: PlatformAccount,
+          componentProps: { platform: "kugou" },
+          fullWidth: true,
+          keywords: [
+            "settings.platformLogin.title",
+            "settings.platformLogin.desc",
+            "settings.platformLogin.loginQr",
             "settings.platformLogin.manualCookie",
           ],
         },

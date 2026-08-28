@@ -2,7 +2,14 @@
  * KG 加密与签名工具
  */
 
-import { createHash } from "node:crypto";
+import {
+  constants,
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  publicEncrypt,
+  randomBytes,
+} from "node:crypto";
 import { KG_APPID, KG_CLIENTVER } from "./config";
 
 /** KG Android 签名盐值 */
@@ -11,6 +18,48 @@ const ANDROID_SIGN_SALT = "OIlwieks28dk2k092lksi2UIkp";
 const WEB_SIGN_SALT = "NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt";
 /** KG key 签名盐值 */
 const SIGN_KEY_SALT = "57ae12eb6890223e355ccfcb74edf70d";
+const KG_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HXqTW6lQ7LC8jr9fWZTwusknp+sVGzwd40MwP6U5yDE27M/X1+UR4tvOGOqp94TJtQ1EPnWGWXngpeIW5GxoQGao1rmYWAu6oi1z9XkChrsUdC6DJE5E221wf/4WLFxwAtRQIDAQAB
+-----END PUBLIC KEY-----`;
+
+/**
+ * 按 KG 客户端协议执行无填充 RSA 加密
+ * @param data - 待加密对象
+ * @returns 十六进制密文
+ */
+export const rsaEncryptKugou = (data: Record<string, unknown>): string => {
+  const input = Buffer.from(JSON.stringify(data));
+  const block = Buffer.alloc(128);
+  input.copy(block);
+  return publicEncrypt({ key: KG_PUBLIC_KEY, padding: constants.RSA_NO_PADDING }, block).toString(
+    "hex",
+  );
+};
+
+export const rsaEncryptKugouPkcs1 = (data: Record<string, unknown>): string =>
+  publicEncrypt(
+    { key: KG_PUBLIC_KEY, padding: constants.RSA_PKCS1_PADDING },
+    Buffer.from(JSON.stringify(data)),
+  ).toString("hex");
+
+export const encryptKugouDeviceData = (
+  data: Record<string, unknown>,
+): { key: string; content: string } => {
+  const key = randomBytes(3).toString("hex");
+  const digest = cryptoMd5(key);
+  const cipher = createCipheriv("aes-128-cbc", digest.slice(0, 16), digest.slice(16, 32));
+  const content = Buffer.concat([cipher.update(JSON.stringify(data)), cipher.final()]).toString(
+    "base64",
+  );
+  return { key, content };
+};
+
+export const decryptKugouDeviceData = (content: Buffer, key: string): unknown => {
+  const digest = cryptoMd5(key);
+  const decipher = createDecipheriv("aes-128-cbc", digest.slice(0, 16), digest.slice(16, 32));
+  const text = Buffer.concat([decipher.update(content), decipher.final()]).toString("utf8");
+  return JSON.parse(text);
+};
 
 /**
  * 计算 MD5 哈希（32位小写 hex）
