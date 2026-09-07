@@ -29,6 +29,16 @@ jobs:
       - name: Fetch upstream
         run: git fetch upstream dev
 
+      - name: Configure push authentication
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "SYNC_TOKEN secret is not configured."
+            exit 1
+          fi
+          git remote set-url origin "https://x-access-token:${SYNC_TOKEN}@github.com/takoyakiwhite/SPlayer-Next.git"
+
       - name: Sync upstream and preserve downstream changes
         shell: bash
         run: |
