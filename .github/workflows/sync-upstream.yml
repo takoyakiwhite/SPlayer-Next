@@ -2,6 +2,9 @@ name: Sync upstream
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - sync-upstream-run
   schedule:
     - cron: "17 * * * *"
 
@@ -46,27 +49,35 @@ jobs:
 
           if [ "$status" -eq 0 ]; then
             echo "Upstream merged cleanly."
-            git push origin dev
+          else
+            echo "Upstream merge has conflicts. Preserving downstream (ours) for conflicted files."
+            conflicts="$(git diff --name-only --diff-filter=U)"
+
+            if [ -z "$conflicts" ]; then
+              echo "Merge failed without detectable conflict files. Aborting."
+              git merge --abort || true
+              exit "$status"
+            fi
+
+            echo "Conflicted files:"
+            printf '%s\n' "$conflicts"
+
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              git checkout --ours -- "$file"
+              git add -- "$file"
+            done <<< "$conflicts"
+          fi
+
+          # Keep the downstream repository's workflow files. This avoids
+          # requiring workflow-write permission when upstream changes CI files.
+          git checkout HEAD -- .github/workflows
+          git add .github/workflows
+
+          if git diff --cached --quiet; then
+            echo "No upstream changes to commit."
             exit 0
           fi
 
-          echo "Upstream merge has conflicts. Preserving downstream (ours) for every conflicted file."
-          conflicts="$(git diff --name-only --diff-filter=U)"
-
-          if [ -z "$conflicts" ]; then
-            echo "Merge failed without detectable conflict files. Aborting."
-            git merge --abort || true
-            exit "$status"
-          fi
-
-          echo "Conflicted files:"
-          printf '%s\n' "$conflicts"
-
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            git checkout --ours -- "$file"
-            git add -- "$file"
-          done <<< "$conflicts"
-
-          git commit -m "chore: sync upstream dev (preserve downstream changes)"
+          git commit -m "chore: sync upstream dev (preserve downstream workflows)"
           git push origin dev
