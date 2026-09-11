@@ -40,6 +40,8 @@ export const getQualityLevel = (quality: AudioQuality | undefined): QualityLevel
   if (!quality || !quality.codec || quality.codec === "unknown") return "lq";
   const isLossless = isLosslessCodec(quality.codec);
   if (isLossless) {
+    // 服务端确认的 hires 标记优先（网易云 hires 源采样率可能仅 44.1k/48k，达不到 96k 门槛）
+    if (quality.hiRes) return "hi-res";
     if (quality.sampleRate >= 96000 && quality.bitsPerSample >= 24) return "hi-res";
     return "lossless";
   }

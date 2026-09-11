@@ -73,6 +73,10 @@ const csrfFrom = (cookie: Record<string, string>): string => cookie["__csrf"] ||
 const OSX_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
+/** MeloX iOS 客户端使用的未登录 EAPI UA */
+const IOS_USER_AGENT =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
+
 /** 生成 WNMCID（进程级常量）：6 位小写字母.时间戳.01.0 */
 const WNMCID = (() => {
   const chars = "abcdefghijklmnopqrstuvwxyz";
@@ -152,9 +156,12 @@ export const createRequest = async (
     headers["X-Forwarded-For"] = ip;
   }
 
+  // 保留原始 cookie：MeloX iOS EAPI 的 HTTP Cookie 不等于加密 header。
+  const originalCookie: Record<string, string> =
+    typeof options.cookie === "string" ? cookieToJson(options.cookie) : { ...(options.cookie || {}) };
+
   // 归一化 cookie 到对象并做一次补全
-  let cookie: Record<string, string> =
-    typeof options.cookie === "string" ? cookieToJson(options.cookie) : options.cookie || {};
+  let cookie: Record<string, string> = { ...originalCookie };
   cookie = processCookieObject(cookie, uri);
   headers["Cookie"] = cookieObjToString(cookie);
 
@@ -225,24 +232,47 @@ export const createRequest = async (
     }
     case "eapi":
     case "api": {
-      const header: Record<string, string> = {
-        osver: cookie.osver,
-        deviceId: cookie.deviceId,
-        os: cookie.os,
-        appver: cookie.appver,
-        versioncode: cookie.versioncode || "140",
-        mobilename: cookie.mobilename || "",
-        buildver: cookie.buildver || Date.now().toString().slice(0, 10),
-        resolution: cookie.resolution || "1920x1080",
-        __csrf: csrfToken,
-        channel: cookie.channel,
-        requestId: generateRequestId(),
-      };
+      const iosClient = cookie.os === "ios";
+      const header: Record<string, string> = iosClient
+        ? {
+            os: "ios",
+            appver: "9.0.90",
+            osver: "18.0",
+            buildver: String(Math.floor(Date.now() / 1000)),
+            channel: "distribution",
+            requestId: `${Date.now()}_0000`,
+            __csrf: csrfToken,
+          }
+        : {
+            osver: cookie.osver,
+            deviceId: cookie.deviceId,
+            os: cookie.os,
+            appver: cookie.appver,
+            versioncode: cookie.versioncode || "140",
+            mobilename: cookie.mobilename || "",
+            buildver: cookie.buildver || Date.now().toString().slice(0, 10),
+            resolution: cookie.resolution || "1920x1080",
+            __csrf: csrfToken,
+            channel: cookie.channel,
+            requestId: generateRequestId(),
+          };
+
       if (cookie.MUSIC_U) header.MUSIC_U = cookie.MUSIC_U;
-      if (cookie.MUSIC_A) header.MUSIC_A = cookie.MUSIC_A;
-      headers["Cookie"] = cookieObjToString(header);
-      headers["User-Agent"] =
-        options.ua || (cookie.os === "osx" ? OSX_USER_AGENT : chooseUserAgent("api", "iphone"));
+      if (!iosClient && cookie.MUSIC_A) header.MUSIC_A = cookie.MUSIC_A;
+
+      if (iosClient) {
+        headers["Cookie"] = cookieObjToString({
+          ...originalCookie,
+          __remember_me: "true",
+          os: originalCookie.os || "ios",
+          appver: originalCookie.appver || "9.0.90",
+        });
+        headers["User-Agent"] = options.ua || IOS_USER_AGENT;
+      } else {
+        headers["Cookie"] = cookieObjToString(header);
+        headers["User-Agent"] =
+          options.ua || (cookie.os === "osx" ? OSX_USER_AGENT : chooseUserAgent("api", "iphone"));
+      }
 
       if (crypto === "eapi") {
         (data as Record<string, unknown>).header = header;
@@ -271,7 +301,7 @@ export const createRequest = async (
       method: "POST",
       headers,
       body,
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(cookie.os === "ios" ? 15000 : 8000),
     });
   } catch (err) {
     answer.status = 502;

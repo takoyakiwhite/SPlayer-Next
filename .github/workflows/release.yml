@@ -18,6 +18,7 @@ permissions:
 
 env:
   NODE_VERSION: 22.x
+  NODE_TLS_REJECT_UNAUTHORIZED: "0"
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 # 同一个 tag 的发布串行执行，避免并发上传资源产生竞态
